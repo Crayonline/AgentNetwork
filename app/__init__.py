@@ -1,0 +1,2 @@
+"""AgentGate FastAPI app package."""
+
