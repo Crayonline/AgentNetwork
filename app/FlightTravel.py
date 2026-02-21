@@ -77,26 +77,6 @@ def _load_dataset() -> None:
         dataset_load_error = f"Failed to load flights dataset: {e}"
         raise
 
-
-def _ensure_dataset_loaded() -> Optional[str]:
-    """
-    Best-effort dataset loader.
-
-    Returns:
-        None if dataset is loaded, else an error message.
-    """
-    global dataset_load_error
-    if df is not None:
-        return None
-    try:
-        _load_dataset()
-        return None
-    except Exception as e:
-        # _load_dataset should set dataset_load_error, but ensure we always return something user-friendly.
-        if not dataset_load_error:
-            dataset_load_error = str(e)
-        return dataset_load_error
-
 # =========================
 # Conversation memory
 # =========================
@@ -147,9 +127,8 @@ class AgentResponse(BaseModel):
 
 
 def search_flights(prompt):
-    err = _ensure_dataset_loaded()
-    if err:
-        return None, err
+    if df is None:
+        _load_dataset()
 
     prompt_lower = prompt.lower()
 
@@ -169,7 +148,7 @@ def search_flights(prompt):
         )
     ]
 
-    return results.head(5), None
+    return results.head(5)
 
 # =========================
 # Generate ChatGPT answer
@@ -186,11 +165,9 @@ def generate_answer(prompt, session_history):
     full_context += prompt
 
     # Now search using full conversation context
-    flights, dataset_err = search_flights(full_context)
+    flights = search_flights(full_context)
 
-    if dataset_err:
-        dataset_context = f"Flights dataset unavailable: {dataset_err}"
-    elif flights is None or flights.empty:
+    if flights.empty:
         dataset_context = "No matching flights found in dataset."
     else:
         dataset_context = ""
@@ -251,7 +228,7 @@ Be conversational, helpful, and concise like ChatGPT.
 # HTTP endpoint
 # =========================
 
-@app.post("/FlightTravel", response_model=AgentResponse)
+@app.post("/run", response_model=AgentResponse)
 def chat(req: AgentRequest):
 
     # Create or reuse session
