@@ -1,32 +1,33 @@
-# AgentsNetwork
+## AgentNetwork
 
-## Local setup
+### Run services (separately)
 
-1) Create a local `.env` file (do **not** commit it). You can start from `env.example`.
-
-2) Run the registry (router / agent search):
-
-```bash
-python run.py registry --reload --port 8000
-```
-
-3) Run the FlightTravel agent:
-
-```bash
-python run.py flighttravel --reload --port 9006
-```
-
-### Alternative (direct uvicorn)
+- **Registry / agent search**:
 
 ```bash
 uvicorn app.main:app --reload --port 8000
+```
+
+- **FlightTravel agent**:
+
+```bash
 uvicorn app.FlightTravel:app --reload --port 9006
 ```
 
-## Endpoints
+### Run both at once (background)
 
-- Registry:
-  - `POST /search` body: `{"intent": "..."}`
-- FlightTravel agent:
-  - `POST /FlightTravel` body: `{"prompt":"...", "session_id": null}`
+This will start both servers in the background:
+
+```bash
+uvicorn app.FlightTravel:app --reload --port 9006 & uvicorn app.main:app --reload --port 8000 &
+```
+
+### Endpoints
+
+- **Registry**:
   - `GET /health`
+  - `GET /agents`
+  - `POST /search` body: `{"intent":"..."}`
+- **FlightTravel agent**:
+  - `GET /health`
+  - `POST /run` body: `{"prompt":"...", "session_id": null}`
