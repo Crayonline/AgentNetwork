@@ -19,7 +19,24 @@ NUM_SIMULATED_AGENTS = 50
 DOMAINS = [
     ("E-Commerce", ["shopping", "retail", "discounts"], ["product_search", "checkout"]),
     ("Legal", ["legal", "contracts", "law"], ["contract_analysis", "compliance_check"]),
-    ("Healthcare", ["health", "medical", "wellness"], ["symptom_triage", "doctor_booking"])
+    ("Healthcare", ["health", "medical", "wellness"], ["symptom_triage", "doctor_booking"]),
+    ("Travel", ["travel", "booking", "flight"], ["flight_search", "travel_planning"]),
+    ("Restaurant", ["restaurant", "booking", "food"], ["restaurant_search", "restaurant_booking"]),
+    ("Hotel", ["hotel", "booking", "accommodation"], ["hotel_search", "hotel_booking"]),
+    ("Car Rental", ["car rental", "booking", "transport"], ["car_rental_search", "car_rental_booking"]),
+    ("Event", ["event", "booking", "ticket"], ["event_search", "event_booking"]),
+    ("Music", ["music", "concert", "ticket"], ["music_search", "music_booking"]),
+    ("Movie", ["movie", "ticket"], ["movie_search", "movie_booking"]),
+    ("Book", ["book", "purchase"], ["book_search", "book_purchase"]),
+    ("Clothing", ["clothing", "purchase"], ["clothing_search", "clothing_purchase"]),
+    ("Electronics", ["electronics", "purchase"], ["electronics_search", "electronics_purchase"]),
+    ("Furniture", ["furniture", "purchase"], ["furniture_search", "furniture_purchase"]),
+    ("Home", ["home", "purchase"], ["home_search", "home_purchase"]),
+    ("Garden", ["garden", "purchase"], ["garden_search", "garden_purchase"]),
+    ("Pet", ["pet", "purchase"], ["pet_search", "pet_purchase"]),
+    ("Toy", ["toy", "purchase"], ["toy_search", "toy_purchase"]),
+    ("Art", ["art", "purchase"], ["art_search", "art_purchase"]),
+    ("Groceries", ["groceries", "purchase"], ["groceries_search", "groceries_purchase"]),
 ]
 
 # Multi-tenant memory: agent_id -> session_id -> history
