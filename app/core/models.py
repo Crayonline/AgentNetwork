@@ -34,4 +34,3 @@ class SearchResult(BaseModel):
         le=1.0,
         description="Confidence/trust in this recommendation (0 to 1).",
     )
-

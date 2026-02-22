@@ -7,7 +7,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from app.registry import AGENTS, get_agent_by_id
+from app.core.registry import agent_registry
 
 
 def _normalize_tokens(text: str) -> list[str]:
@@ -20,10 +20,11 @@ def fallback_recommend(intent: str, top_k: int = 3) -> list[dict[str, Any]]:
     Lightweight local heuristic if OpenAI isn't available.
     Scores agents by token overlap with name/description/tags/capabilities.
     """
+    agents = agent_registry.get_all()
     intent_tokens = set(_normalize_tokens(intent))
     scored: list[tuple[float, dict[str, Any], set[str], float]] = []
 
-    for agent in AGENTS:
+    for agent in agents:
         meta = agent.get("metadata", {}) or {}
         haystack = " ".join(
             [
@@ -99,6 +100,7 @@ def openai_recommend(intent: str, top_k: int, model: str) -> list[dict[str, Any]
         raise RuntimeError("OPENAI_API_KEY is not set")
 
     client = OpenAI(api_key=api_key)
+    agents = agent_registry.get_all()
 
     # We ask the model to ONLY pick agent_ids and a rank order. We enrich afterwards.
     tools = [
@@ -149,7 +151,7 @@ def openai_recommend(intent: str, top_k: int, model: str) -> list[dict[str, Any]
             "endpoint": a["endpoint"],
             "metadata": a.get("metadata", {}) or {},
         }
-        for a in AGENTS
+        for a in agents
     ]
 
     system = (
@@ -194,7 +196,7 @@ def openai_recommend(intent: str, top_k: int, model: str) -> list[dict[str, Any]
         agent_id = str(item.get("agent_id", "")).strip()
         if not agent_id or agent_id in seen:
             continue
-        agent = get_agent_by_id(agent_id)
+        agent = agent_registry.get_by_id(agent_id)
         if not agent:
             continue
         seen.add(agent_id)
@@ -229,4 +231,3 @@ def openai_recommend(intent: str, top_k: int, model: str) -> list[dict[str, Any]
         raise RuntimeError("OpenAI returned no valid selections")
 
     return normalized
-
