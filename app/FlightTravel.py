@@ -12,11 +12,13 @@ try:
     import pandas as pd
 except Exception as e:  # pragma: no cover
     pd = None  # type: ignore[assignment]
-
-try:
-    import kagglehub
-except Exception as e:  # pragma: no cover
-    kagglehub = None  # type: ignore[assignment]
+# NOTE: KaggleHub support is intentionally disabled for this project right now.
+# We keep the code here (commented) in case you want to re-enable auto-download later.
+#
+# try:
+#     import kagglehub
+# except Exception as e:  # pragma: no cover
+#     kagglehub = None  # type: ignore[assignment]
 from openai import OpenAI
 
 load_dotenv()
@@ -33,13 +35,16 @@ client: Optional[OpenAI] = None
 
 df = None
 dataset_load_error: Optional[str] = None
+_available_cities: Optional[list[str]] = None
 
 
 def _load_dataset() -> None:
     """
-    Loads the flights dataset either from:
-    - FLIGHTS_CSV_PATH (preferred, local path), or
-    - KaggleHub download (requires kagglehub + network).
+    Loads the flights dataset from a local CSV file.
+
+    Priority:
+    - FLIGHTS_CSV_PATH (if set), otherwise
+    - app/airlines_flights_data.csv (checked in to this repo)
     """
     global df, dataset_load_error
     if df is not None:
@@ -49,33 +54,64 @@ def _load_dataset() -> None:
         dataset_load_error = "pandas is required to run FlightTravel agent. Install pandas and retry."
         raise RuntimeError(dataset_load_error)
 
-    csv_path = os.getenv("FLIGHTS_CSV_PATH")
-    if csv_path and os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-        return
+    csv_path = os.getenv("FLIGHTS_CSV_PATH") or os.path.join(
+        os.path.dirname(__file__),
+        "airlines_flights_data.csv",
+    )
 
-    if kagglehub is None:
+    if not os.path.exists(csv_path):
         dataset_load_error = (
-            "Dataset not available. Set FLIGHTS_CSV_PATH to a local CSV, or install kagglehub to auto-download."
+            "Flights dataset CSV not found. "
+            "Set FLIGHTS_CSV_PATH or ensure app/airlines_flights_data.csv exists."
         )
         raise RuntimeError(dataset_load_error)
 
     try:
-        path = kagglehub.dataset_download("rohitgrewal/airlines-flights-data")
-        csv_file = None
-        for file in os.listdir(path):
-            if file.endswith(".csv"):
-                csv_file = os.path.join(path, file)
-                break
-
-        if not csv_file:
-            dataset_load_error = "KaggleHub download succeeded but no CSV was found in the dataset directory."
-            raise RuntimeError(dataset_load_error)
-
-        df = pd.read_csv(csv_file)
+        df = pd.read_csv(csv_path)
     except Exception as e:  # pragma: no cover
-        dataset_load_error = f"Failed to load flights dataset: {e}"
+        dataset_load_error = f"Failed to load flights dataset from {csv_path}: {e}"
         raise
+
+    # Build a small index of cities for intent matching.
+    global _available_cities
+    try:
+        src = df["source_city"].dropna().astype(str).unique().tolist()
+        dst = df["destination_city"].dropna().astype(str).unique().tolist()
+        _available_cities = sorted(set(src) | set(dst), key=lambda x: x.lower())
+    except Exception:  # pragma: no cover
+        _available_cities = None
+
+    # ------------------------------------------------------------
+    # KaggleHub auto-download (DISABLED / COMMENTED OUT)
+    # ------------------------------------------------------------
+    # If you ever want to re-enable this, a reasonable policy is:
+    # - prefer FLIGHTS_CSV_PATH
+    # - else try local app/airlines_flights_data.csv
+    # - else fall back to KaggleHub download
+    #
+    # if kagglehub is None:
+    #     dataset_load_error = (
+    #         "Dataset not available. Set FLIGHTS_CSV_PATH to a local CSV, "
+    #         "or install kagglehub to auto-download."
+    #     )
+    #     raise RuntimeError(dataset_load_error)
+    #
+    # try:
+    #     path = kagglehub.dataset_download("rohitgrewal/airlines-flights-data")
+    #     csv_file = None
+    #     for file in os.listdir(path):
+    #         if file.endswith(".csv"):
+    #             csv_file = os.path.join(path, file)
+    #             break
+    #
+    #     if not csv_file:
+    #         dataset_load_error = "KaggleHub download succeeded but no CSV was found in the dataset directory."
+    #         raise RuntimeError(dataset_load_error)
+    #
+    #     df = pd.read_csv(csv_file)
+    # except Exception as e:  # pragma: no cover
+    #     dataset_load_error = f"Failed to load flights dataset: {e}"
+    #     raise
 
 # =========================
 # Conversation memory
@@ -132,23 +168,44 @@ def search_flights(prompt):
 
     prompt_lower = prompt.lower()
 
-    results = df.copy()
+    # If the user doesn't mention cities, the old logic returned empty results.
+    # Instead, we try to detect mentioned cities and fall back to "cheapest flights".
+    cities = _available_cities or []
+    mentioned = [c for c in cities if c.lower() in prompt_lower]
+    mentioned.sort(key=lambda c: prompt_lower.find(c.lower()))
 
-    # match source city
-    results = results[
-        results["source_city"].str.lower().apply(
-            lambda x: any(city in prompt_lower for city in [x])
-        )
-    ]
+    results = df
 
-    # match destination city
-    results = results[
-        results["destination_city"].str.lower().apply(
-            lambda x: any(city in prompt_lower for city in [x])
-        )
-    ]
+    if len(mentioned) >= 2:
+        src_city, dst_city = mentioned[0], mentioned[1]
+        results = results[
+            (results["source_city"].astype(str).str.lower() == src_city.lower())
+            & (results["destination_city"].astype(str).str.lower() == dst_city.lower())
+        ]
+    elif len(mentioned) == 1:
+        city = mentioned[0]
+        results = results[
+            (results["source_city"].astype(str).str.lower() == city.lower())
+            | (results["destination_city"].astype(str).str.lower() == city.lower())
+        ]
+    else:
+        # No city mentioned -> just show cheap flights, so the user sees dataset-backed output.
+        results = results
 
-    return results.head(5)
+    # Prefer cheapest options if possible.
+    try:
+        top = results.nsmallest(5, "price")
+    except Exception:
+        top = results.head(5)
+
+    # If route filter produced nothing, fall back to cheapest overall.
+    if top is None or top.empty:
+        try:
+            top = df.nsmallest(5, "price")
+        except Exception:
+            top = df.head(5)
+
+    return top
 
 # =========================
 # Generate ChatGPT answer
@@ -168,7 +225,10 @@ def generate_answer(prompt, session_history):
     flights = search_flights(full_context)
 
     if flights.empty:
-        dataset_context = "No matching flights found in dataset."
+        cities_hint = ""
+        if _available_cities:
+            cities_hint = " Available cities include: " + ", ".join(_available_cities[:12]) + "."
+        dataset_context = "No matching flights found in dataset." + cities_hint
     else:
         dataset_context = ""
 

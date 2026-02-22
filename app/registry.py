@@ -8,7 +8,7 @@ AGENTS: list[dict[str, Any]] = [
     {
         "id": "agent_flight_travel",
         "name": "FlightTravelAgent",
-        "endpoint": "http://localhost:9006/FlightTravel",
+        "endpoint": "http://localhost:9006/run",
         "metadata": {
             "description": "Finds and explains flight options from a local flights dataset; can chat with session memory.",
             "capabilities": ["flight_search", "travel_planning", "conversational_qa"],
