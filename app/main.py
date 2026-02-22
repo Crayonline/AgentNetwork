@@ -6,6 +6,7 @@ import pkgutil
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.models import Agent, SearchRequest, SearchResult
 from app.core.recommender import fallback_recommend, openai_recommend
@@ -16,6 +17,15 @@ import app.agents as agents_pkg  # noqa: F401 - This is why agents/__init__.py m
 load_dotenv()
 
 app = FastAPI(title="AgentGate Network Hub", version="0.2.0")
+
+# 2. Add this block right after 'app = FastAPI(...)'
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In production, restrict this to your React app's URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ==========================================
 # 🔌 PLUGIN DISCOVERY ENGINE

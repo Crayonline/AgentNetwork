@@ -13,7 +13,7 @@ from app.core.registry import AgentRegistry, agent_registry
 
 router = APIRouter()
 
-NUM_SIMULATED_AGENTS = 20
+NUM_SIMULATED_AGENTS = 50
 
 # Just a small sample of domains!
 DOMAINS = [
